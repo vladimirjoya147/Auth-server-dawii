@@ -7,6 +7,7 @@ import com.nimbusds.jose.jwk.source.ImmutableJWKSet;
 import com.nimbusds.jose.jwk.source.JWKSource;
 import com.nimbusds.jose.proc.SecurityContext;
 import jakarta.persistence.EntityNotFoundException;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.annotation.Order;
@@ -81,7 +82,7 @@ public class SecurityConfig {
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
 
-        configuration.setAllowedOrigins(List.of("http://localhost:4200"));
+        configuration.setAllowedOrigins(List.of("http://localhost:4200","http://localhost:8080"));
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE","PATCH", "OPTIONS"));
         configuration.setAllowedHeaders(List.of("*"));
         configuration.setAllowCredentials(true);
@@ -94,7 +95,7 @@ public class SecurityConfig {
 
     @Bean
     @Order(1)
-    public SecurityFilterChain authorizationServerSecurityFilterChain(HttpSecurity http) throws Exception {
+    public SecurityFilterChain authorizationServerSecurityFilterChain(HttpSecurity http, AuthorizationServerSettings authorizationServerSettings) throws Exception {
         OAuth2AuthorizationServerConfigurer authorizationServerConfigurer =
                 new OAuth2AuthorizationServerConfigurer();
 
@@ -106,7 +107,7 @@ public class SecurityConfig {
                         authorize.anyRequest().authenticated()
                 )
                 .csrf(csrf -> csrf.ignoringRequestMatchers(endpointsMatcher))
-                .cors(Customizer.withDefaults())
+                /*.cors(Customizer.withDefaults())*/
                 .formLogin(formLogin ->
                         formLogin
                                 .loginPage("/login")
@@ -120,7 +121,7 @@ public class SecurityConfig {
                                 .registeredClientRepository(registeredClientRepository())
                                 .authorizationService(authorizationService())
                                 .authorizationConsentService(authorizationConsentService())
-                                .authorizationServerSettings(authorizationServerSettings())
+                                .authorizationServerSettings(authorizationServerSettings)
                                 .tokenGenerator(tokenGenerator())
                 );
 
@@ -141,16 +142,20 @@ public class SecurityConfig {
                                         "/api/debug/**",
                                         "/login",
                                         "/logout",
-                                        "/error"
+                                        "/error",
+                                        "/user/**"
                                 ).permitAll()
                                 .anyRequest().authenticated()
                 )
-                .cors(Customizer.withDefaults())
+                .csrf(csrf ->csrf.ignoringRequestMatchers(
+                        "/user/**"
+                ))
+                /*.cors(Customizer.withDefaults())*/
                 .formLogin(formLogin ->
                         formLogin
                                 .loginPage("/login")
                                 .loginProcessingUrl("/login")
-                                .successHandler(savedRequestAwareAuthenticationSuccessHandler()) // 👈 Cambio clave
+                                .successHandler(savedRequestAwareAuthenticationSuccessHandler())
                                 .failureUrl("/login?error=true")
                                 .permitAll()
                 )
@@ -263,9 +268,10 @@ public class SecurityConfig {
 
 
     @Bean
-    public AuthorizationServerSettings authorizationServerSettings() {
+    public AuthorizationServerSettings authorizationServerSettings(
+            @Value("${spring.security.oauth2.authorizationserver.issuer}") String issuer) {
         return AuthorizationServerSettings.builder()
-                .issuer("http://localhost:9000")
+                .issuer(issuer)
                 .authorizationEndpoint("/oauth2/authorize")
                 .tokenEndpoint("/oauth2/token")
                 .tokenIntrospectionEndpoint("/oauth2/introspect")
@@ -275,6 +281,7 @@ public class SecurityConfig {
                 .oidcLogoutEndpoint("/logout")
                 .build();
     }
+
 
     @Bean
     public OAuth2TokenCustomizer<JwtEncodingContext> tokenCustomizer() {

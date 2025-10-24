@@ -5,16 +5,9 @@ import com.cibertec.oauth_server.Entity.UserEntity;
 import com.cibertec.oauth_server.OAUTH.UsuarioNoEncontradoException;
 import com.cibertec.oauth_server.Repository.UsuarioRepository;
 import org.springframework.stereotype.Service;
+import java.util.List;
+import java.util.Set;
 
-<<<<<<< HEAD
-import java.util.List;
-import java.util.Set;
-=======
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Set;
-import java.util.stream.Collectors;
->>>>>>> 3b7c06b (usuarios id)
 
 @Service
 public class UsuariosService {

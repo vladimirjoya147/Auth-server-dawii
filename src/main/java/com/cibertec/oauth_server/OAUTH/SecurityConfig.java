@@ -16,6 +16,7 @@ import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.authentication.builders.AuthenticationManagerBuilder;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetailsService;
@@ -41,17 +42,16 @@ import org.springframework.security.oauth2.server.authorization.settings.TokenSe
 import org.springframework.security.oauth2.server.authorization.token.JwtEncodingContext;
 import org.springframework.security.oauth2.server.authorization.token.OAuth2TokenCustomizer;
 import org.springframework.security.web.SecurityFilterChain;
-import org.springframework.security.web.access.AccessDeniedHandlerImpl;
 import org.springframework.security.web.authentication.AuthenticationSuccessHandler;
 import org.springframework.security.web.authentication.LoginUrlAuthenticationEntryPoint;
 import org.springframework.security.web.authentication.SavedRequestAwareAuthenticationSuccessHandler;
+import org.springframework.security.web.savedrequest.HttpSessionRequestCache;
+import org.springframework.security.web.savedrequest.SavedRequest;
 import org.springframework.security.web.util.matcher.RequestMatcher;
-import org.springframework.stereotype.Service;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import org.springframework.security.oauth2.server.authorization.token.*;
-import org.springframework.security.oauth2.server.authorization.settings.AuthorizationServerSettings;
 import org.springframework.security.oauth2.server.authorization.token.JwtGenerator;
 import org.springframework.security.oauth2.server.authorization.token.OAuth2AccessTokenGenerator;
 import org.springframework.security.oauth2.server.authorization.token.OAuth2RefreshTokenGenerator;
@@ -106,13 +106,15 @@ public class SecurityConfig {
                 .authorizeHttpRequests(authorize ->
                         authorize.anyRequest().authenticated()
                 )
-                .csrf(csrf -> csrf.ignoringRequestMatchers(endpointsMatcher))
-                /*.cors(Customizer.withDefaults())*/
-                .formLogin(formLogin ->
-                        formLogin
-                                .loginPage("/login")
-                                .permitAll()
-                )
+
+                .csrf(AbstractHttpConfigurer::disable)
+                .cors(Customizer.withDefaults())
+                .formLogin(formLogin -> formLogin
+                        .loginPage("/login")
+                        .loginProcessingUrl("/login")
+                        .defaultSuccessUrl("/user/info", true)
+                        .failureUrl("/login?error=true")
+                        .permitAll())
                 .with(authorizationServerConfigurer, authorizationServer ->
                         authorizationServer
                                 .oidc(Customizer.withDefaults())
@@ -132,48 +134,38 @@ public class SecurityConfig {
     @Order(2)
     public SecurityFilterChain defaultSecurityFilterChain(HttpSecurity http) throws Exception {
         http
-                .authorizeHttpRequests(authorize ->
-                        authorize
-                                .requestMatchers(
-                                        "/auth/register",
-                                        "/css/**",
-                                        "/js/**",
-                                        "/.well-known/**",
-                                        "/api/debug/**",
-                                        "/login",
-                                        "/logout",
-                                        "/error",
-                                        "/user/**"
-                                ).permitAll()
-                                .anyRequest().authenticated()
-                )
-                .csrf(csrf ->csrf.ignoringRequestMatchers(
-                        "/user/**"
-                ))
-                /*.cors(Customizer.withDefaults())*/
-                .formLogin(formLogin ->
-                        formLogin
-                                .loginPage("/login")
-                                .loginProcessingUrl("/login")
-                                .successHandler(savedRequestAwareAuthenticationSuccessHandler())
-                                .failureUrl("/login?error=true")
-                                .permitAll()
-                )
-                .logout(logout ->
-                        logout
-                                .logoutUrl("/logout")
-                                .logoutSuccessUrl("/login?logout")
-                                .invalidateHttpSession(true)
-                                .deleteCookies("JSESSIONID")
-                                .permitAll()
-                )
-                .exceptionHandling(exceptions ->
-                        exceptions
-                                .authenticationEntryPoint(new LoginUrlAuthenticationEntryPoint("/login"))
-                );
+                .authorizeHttpRequests(authorize -> authorize
+                        .requestMatchers("/auth/register", "/css/**", "/js/**", "/.well-known/**",
+                                "/api/debug/**", "/login", "/logout", "/error", "/user/**")
+                        .permitAll()
+                        .anyRequest()
+                        .authenticated())
+                .csrf(AbstractHttpConfigurer::disable)
+                .cors(Customizer.withDefaults())
+                .formLogin(formLogin -> formLogin
+                        .loginPage("/login")
+                        .loginProcessingUrl("/login")
+                        .successHandler((request, response, authentication) -> {
+                            SavedRequest savedRequest = new HttpSessionRequestCache().getRequest(request, response);
+                            if (savedRequest != null) {
+                                String redirectUrl = savedRequest.getRedirectUrl();
+                                System.out.println("Redirect URL encontrada: " + redirectUrl);
+
+                                if (redirectUrl != null && redirectUrl.contains("/oauth2/authorize")) {
+                                    response.sendRedirect(redirectUrl);
+                                    return;
+                                }
+                            }
+                            response.sendRedirect("/user/info");
+                        })
+                        .failureUrl("/login?error=true")
+                        .permitAll())
+                .exceptionHandling(exceptions -> exceptions
+                        .authenticationEntryPoint(new LoginUrlAuthenticationEntryPoint("/login")));
 
         return http.build();
     }
+
 
     @Bean
     public AuthenticationSuccessHandler savedRequestAwareAuthenticationSuccessHandler() {
@@ -204,8 +196,7 @@ public class SecurityConfig {
     public RegisteredClientRepository registeredClientRepository() {
         RegisteredClient angularClient = RegisteredClient.withId(UUID.randomUUID().toString())
                 .clientId("angular-client")
-                .clientSecret("$2a$10$y1Mtb957cTrmuzl5m8oGLOkd6RBxygHue65r.VUta9JNJ05GeM4OC")
-                .clientAuthenticationMethod(ClientAuthenticationMethod.CLIENT_SECRET_POST)
+                .clientAuthenticationMethod(ClientAuthenticationMethod.NONE)
                 .authorizationGrantType(AuthorizationGrantType.AUTHORIZATION_CODE)
                 .authorizationGrantType(AuthorizationGrantType.REFRESH_TOKEN)
                 .redirectUri("http://localhost:4200/auth-callback")
@@ -226,6 +217,7 @@ public class SecurityConfig {
 
         return new InMemoryRegisteredClientRepository(angularClient);
     }
+
 
     @Bean
     public OAuth2TokenGenerator<?> tokenGenerator() {

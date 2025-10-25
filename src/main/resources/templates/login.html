@@ -31,7 +31,6 @@
     <div th:if="${success}" class="success" th:text="${success}"></div>
     <div th:if="${error}" class="error" th:text="${error}"></div>
 
-    <!-- Formulario de login de Spring Security -->
     <form th:action="@{/login}" method="post">
         <div class="form-group">
             <label for="username">Email:</label>
@@ -48,7 +47,6 @@
         <a href="/auth/register">¿No tienes cuenta? Regístrate</a>
     </div>
 
-    <!-- Información para desarrolladores -->
     <div style="margin-top: 2rem; padding: 1rem; background: #e9ecef; border-radius: 4px; font-size: 0.9rem;">
         <strong>Credenciales de prueba:</strong><br>
         admin@example.com / 123456

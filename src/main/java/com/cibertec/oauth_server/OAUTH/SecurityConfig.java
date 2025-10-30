@@ -136,7 +136,7 @@ public class SecurityConfig {
         http
                 .authorizeHttpRequests(authorize -> authorize
                         .requestMatchers("/auth/register", "/css/**", "/js/**", "/.well-known/**",
-                                "/api/debug/**", "/login", "/logout", "/error", "/user/**")
+                                "/api/debug/**", "/login", "/logout", "/error", "/user/**","/actuator/**")
                         .permitAll()
                         .anyRequest()
                         .authenticated())
@@ -180,7 +180,7 @@ public class SecurityConfig {
 
     @Bean
     public AuthenticationManager authenticationManager(HttpSecurity http,
-                                                       PasswordEncoder passwordEncoder) throws Exception {
+                            PasswordEncoder passwordEncoder) throws Exception {
         AuthenticationManagerBuilder authenticationManagerBuilder =
                 http.getSharedObject(AuthenticationManagerBuilder.class);
 
